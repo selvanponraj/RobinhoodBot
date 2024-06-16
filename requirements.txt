@@ -3,3 +3,6 @@ numpy>=1.18.1
 pandas>=1.0.1
 robin-stocks==2.0.2
 ta>=0.5.11
+yahoo_fin
+requests_html
+pyotp

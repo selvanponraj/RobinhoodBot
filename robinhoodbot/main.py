@@ -7,21 +7,28 @@ from ta import *
 from misc import *
 from tradingstats import *
 from config import *
+from get_tickers import *
+from pyotp import TOTP as otp
 
 #Log in to Robinhood
 #Put your username and password in a config.py file in the same directory (see sample file)
-login = r.login(rh_username,rh_password)
+totp = otp(rh_auth_activation_key).now()
+login = r.login(rh_username,rh_password,mfa_code=totp)
 
 #Safe divide by zero division function
 def safe_division(n, d):
     return n / d if d else 0
 
 def get_historicals(ticker, intervalArg, spanArg, boundsArg):
-    history = r.get_stock_historicals(ticker,interval=intervalArg,span=spanArg,bounds=boundsArg)
+    history = None
+    try:
+        history = r.get_stock_historicals(ticker,interval=intervalArg,span=spanArg,bounds=boundsArg)
+    except:
+        pass
 
-    #If it's not a stock ticker, try it as a crypto ticker
-    if(history is None or None in history):
-        history = r.get_crypto_historicals(ticker,interval=intervalArg,span=spanArg,bounds=boundsArg)
+    # #If it's not a stock ticker, try it as a crypto ticker
+    # if(history is None or None in history):
+    #     history = r.get_crypto_historicals(ticker,interval=intervalArg,span=spanArg,bounds=boundsArg)
 
     return history
 
@@ -150,7 +157,7 @@ def five_year_check(stockTicker):
     if(instrument is None or len(instrument) == 0):
         return True
     list_date = instrument[0].get("list_date")
-    if ((pd.Timestamp("now") - pd.to_datetime(list_date)) < pd.Timedelta("5 Y")):
+    if ((pd.Timestamp("now") - pd.to_datetime(list_date)) < pd.Timedelta(days=365*5)):
         return True
     fiveyear =  get_historicals(stockTicker, "day", "5year", "regular")
     if (fiveyear is None or None in fiveyear):
@@ -242,9 +249,9 @@ def buy_holdings(potential_buys, profile_data, holdings_data):
         elif (stock_price < ideal_position_size):
             num_shares = int(ideal_position_size/stock_price)
         else:
-            print("####### Tried buying shares of " + potential_buys[i] + ", but not enough buying power to do so#######")
-            break
-        print("####### Buying " + str(num_shares) + " shares of " + potential_buys[i] + " #######")
+            print("####### Tried buying shares of size " + str(5000/stock_price) + " " + potential_buys[i] + ", but not enough buying power to do so#######")
+            # break
+        # print("####### Buying " + str(num_shares) + " shares of " + potential_buys[i] + " #######")
         if not debug:
             r.order_buy_market(potential_buys[i], num_shares)
 
@@ -263,7 +270,15 @@ def scan_stocks():
         print("----- DEBUG MODE -----\n")
     print("----- Starting scan... -----\n")
     register_matplotlib_converters()
-    watchlist_symbols = get_watchlist_symbols()
+    # watchlist_symbols = get_watchlist_symbols()
+    # watchlist_symbols = get_symbols("nasdaq")
+    watchlist_symbols =get_tickers(AMEX=False, NYSE=False)
+    # filtered_tickers = get_tickers_filtered(mktcap_min=2000)
+    # watchlist_symbols = get_biggest_n_tickers(100,NYSE=False, AMEX=False)
+    # watchlist_symbols = get_sp_X00(index=500)
+    # watchlist_symbols = get_nasdaq_100()
+    # print("NASDAQ",len(watchlist_symbols),len(set(watchlist_symbols)))
+
     portfolio_symbols = get_portfolio_symbols()
     holdings_data = get_modified_holdings()
     potential_buys = []
@@ -280,9 +295,12 @@ def scan_stocks():
     print("\n----- Scanning watchlist for stocks to buy -----\n")
     for symbol in watchlist_symbols:
         if(symbol not in portfolio_symbols):
-            cross = golden_cross(symbol, n1=50, n2=200, days=10, direction="above")
-            if(cross == 1):
-                potential_buys.append(symbol)
+            try:
+                cross = golden_cross(symbol, n1=50, n2=200, days=10, direction="above")
+                if(cross == 1):
+                    potential_buys.append(symbol)
+            except:
+                pass
     if(len(potential_buys) > 0):
         buy_holdings(potential_buys, profile_data, holdings_data)
     if(len(sells) > 0):
