@@ -242,10 +242,21 @@ def sell_holdings(symbol, holdings_data):
         symbol(str): Symbol of the stock we want to sell
         holdings_data(dict): dict obtained from get_modified_holdings() method
     """
-    shares_owned = int(float(holdings_data[symbol].get("quantity")))
+    # shares_owned = int(float(holdings_data[symbol].get("quantity")))
+    shares_owned_ib = int(position_quantity(ib,symbol))
+    print(symbol,shares_owned_ib)
     if not debug:
-        r.order_sell_market(symbol, shares_owned)
-    print("####### Selling " + str(shares_owned) + " shares of " + symbol + " #######")
+        r.order_sell_market(symbol, shares_owned_ib)
+    if ib_trade:
+        # shares_owned_ib = int(position_quantity(symbol))
+        contract = Stock(symbol, 'SMART', 'USD')
+        order = MarketOrder("SELL", totalQuantity=num_shares)
+        ib.qualifyContracts(contract)
+        ib.placeOrder(contract=contract, order=order)
+    
+   
+
+    print("####### Selling " + str(shares_owned_ib) + " shares of " + symbol + " #######")
 
 def buy_holdings(potential_buys, profile_data, holdings_data):
     """ Places orders to buy holdings of stocks. This method will try to order
@@ -259,32 +270,8 @@ def buy_holdings(potential_buys, profile_data, holdings_data):
         symbol(str): Symbol of the stock we want to sell
         holdings_data(dict): dict obtained from r.build_holdings() or get_modified_holdings() method
     """
-    # cash = float(profile_data.get('cash'))
-    # cash = [x.value for x in ib.accountValues() if x.tag == "CashBalance" and x.currency == "USD"][0]
-    # cash=10000
-    
-    
-
-    # account_df = ib_account(ib)
-    # # cash = available_funds(account_df)* gbp_usd_rate(ib)
-    # portfolio_value = float(net_liquidation_value(account_df)*gbp_usd_rate(ib)) - cash
-
-    # cash = float(profile_data.get('cash'))
-    # cash = 8500
-    # equity= 1500
-    # portfolio_value = float(equity)-cash
-
-    # cash = 1000
-    # portfolio_value =1500
-    # print("Safe Division", safe_division(portfolio_value, 3))
-
-
-
-    # cash = float(profile_data.get('cash'))
-    # portfolio_value = float(profile_data.get('equity')) - cash
-
     account_df = ib_account(ib)
-    # cash = available_funds(account_df)* gbp_usd_rate(ib)
+    cash = available_funds(account_df)* gbp_usd_rate(ib)
     portfolio_value = float(net_liquidation_value(account_df)*gbp_usd_rate(ib))
 
     ideal_position_size = (safe_division(portfolio_value, len(ib.positions()))+cash/len(potential_buys))/(2 * len(potential_buys))
@@ -332,8 +319,9 @@ def scan_stocks():
     watchlist_symbols = ['AAPL','TTWO','VRSK']
     # print("NASDAQ",len(watchlist_symbols),len(set(watchlist_symbols)))
 
-    portfolio_symbols = get_portfolio_symbols()
+    # portfolio_symbols = get_portfolio_symbols()
     # portfolio_symbols = get_portfolio_symbols_ib
+    portfolio_symbols = ['TTWO','VRSK']
     holdings_data = get_modified_holdings()
     potential_buys = []
     sells = []
@@ -341,6 +329,7 @@ def scan_stocks():
     print("Current Watchlist: " + str(watchlist_symbols) + "\n")
     print("----- Scanning portfolio for stocks to sell -----\n")
     for symbol in portfolio_symbols:
+        sell_holdings(symbol, holdings_data)
         cross = golden_cross(symbol, n1=50, n2=200, days=30, direction="below")
         if(cross == -1):
             sell_holdings(symbol, holdings_data)

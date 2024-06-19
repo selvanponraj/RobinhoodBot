@@ -49,13 +49,22 @@ def ib_account(ib):
     # Return Dataframe as output
     return df
 
-# ib = connect_to_ib()
-# if ib is None:
-#     exit()
+ib = connect_to_ib()
+if ib is None:
+    exit()
+
+
+positions = ib.positions()
+
+for position in positions:
+    print(f'You have {position.position} shares of {position.contract.symbol}')
+
 # df = ib_account()
 
 # print(df)
 # print(gbp_usd_rate(ib))
+
+ib.disconnect()
 
 def is_trading_time():
     now = datetime.now(timezone.utc)

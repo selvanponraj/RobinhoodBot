@@ -41,6 +41,14 @@ def gbp_usd_rate(ib_instance):
     val = df['close'].values[0]
     return val
 
+def position_quantity(ib_instance,symbol):
+    positions = ib_instance.positions()
+    for position in positions:
+        if position.contract.symbol == symbol:
+            print(f'You have {position.position} shares of {position.contract.symbol}')
+            return position.position
+
+
 def net_liquidation_value(dataframe):
     # Requires ib_account() dataframe to use.
     df = dataframe
