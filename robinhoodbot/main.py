@@ -9,11 +9,19 @@ from tradingstats import *
 from config import *
 from get_tickers import *
 from pyotp import TOTP as otp
+# from ib_insync import *
+from ib.connect import *
+from ib.utils import *
 
 #Log in to Robinhood
 #Put your username and password in a config.py file in the same directory (see sample file)
 totp = otp(rh_auth_activation_key).now()
 login = r.login(rh_username,rh_password,mfa_code=totp)
+
+
+ib = connect_to_ib()
+if ib is None:
+    exit()
 
 #Safe divide by zero division function
 def safe_division(n, d):
@@ -65,6 +73,16 @@ def get_portfolio_symbols():
         symbol = instrument_data['symbol']
         symbols.append(symbol)
     return symbols
+def get_portfolio_symbols_ib():
+    """
+    Returns: the symbol for each stock in your portfolio as a list of strings
+    """
+    symbols = []
+    positions = ib.positions()
+    for position in positions:
+        symbols.append(position.contract.symbol)
+    return symbols
+
 
 def get_position_creation_date(symbol, holdings_data):
     """Returns the time at which we bought a certain stock in our portfolio
@@ -98,6 +116,7 @@ def get_modified_holdings():
         bought_at = get_position_creation_date(symbol, holdings_data)
         bought_at = str(pd.to_datetime(bought_at))
         holdings[symbol].update({'bought_at': bought_at})
+    print(holdings)
     return holdings
 
 def get_last_crossing(df, days, symbol="", direction=""):
@@ -160,6 +179,8 @@ def five_year_check(stockTicker):
     if ((pd.Timestamp("now") - pd.to_datetime(list_date)) < pd.Timedelta(days=365*5)):
         return True
     fiveyear =  get_historicals(stockTicker, "day", "5year", "regular")
+   
+
     if (fiveyear is None or None in fiveyear):
         return True
     closingPrices = []
@@ -238,9 +259,35 @@ def buy_holdings(potential_buys, profile_data, holdings_data):
         symbol(str): Symbol of the stock we want to sell
         holdings_data(dict): dict obtained from r.build_holdings() or get_modified_holdings() method
     """
-    cash = float(profile_data.get('cash'))
-    portfolio_value = float(profile_data.get('equity')) - cash
-    ideal_position_size = (safe_division(portfolio_value, len(holdings_data))+cash/len(potential_buys))/(2 * len(potential_buys))
+    # cash = float(profile_data.get('cash'))
+    # cash = [x.value for x in ib.accountValues() if x.tag == "CashBalance" and x.currency == "USD"][0]
+    # cash=10000
+    
+    
+
+    # account_df = ib_account(ib)
+    # # cash = available_funds(account_df)* gbp_usd_rate(ib)
+    # portfolio_value = float(net_liquidation_value(account_df)*gbp_usd_rate(ib)) - cash
+
+    # cash = float(profile_data.get('cash'))
+    # cash = 8500
+    # equity= 1500
+    # portfolio_value = float(equity)-cash
+
+    # cash = 1000
+    # portfolio_value =1500
+    # print("Safe Division", safe_division(portfolio_value, 3))
+
+
+
+    # cash = float(profile_data.get('cash'))
+    # portfolio_value = float(profile_data.get('equity')) - cash
+
+    account_df = ib_account(ib)
+    # cash = available_funds(account_df)* gbp_usd_rate(ib)
+    portfolio_value = float(net_liquidation_value(account_df)*gbp_usd_rate(ib))
+
+    ideal_position_size = (safe_division(portfolio_value, len(ib.positions()))+cash/len(potential_buys))/(2 * len(potential_buys))
     prices = r.get_latest_price(potential_buys)
     for i in range(0, len(potential_buys)):
         stock_price = float(prices[i])
@@ -249,11 +296,16 @@ def buy_holdings(potential_buys, profile_data, holdings_data):
         elif (stock_price < ideal_position_size):
             num_shares = int(ideal_position_size/stock_price)
         else:
-            print("####### Tried buying shares of size " + str(5000/stock_price) + " " + potential_buys[i] + ", but not enough buying power to do so#######")
-            # break
-        # print("####### Buying " + str(num_shares) + " shares of " + potential_buys[i] + " #######")
+            print("####### Tried buying shares of size " + potential_buys[i] + ", but not enough buying power to do so#######")
+            break
+        print("####### Buying " + str(num_shares) + " shares of " + potential_buys[i] + " #######")
         if not debug:
             r.order_buy_market(potential_buys[i], num_shares)
+        if ib:
+            contract = Stock(potential_buys[i], 'SMART', 'USD')
+            order = MarketOrder("BUY", totalQuantity=num_shares)
+            ib.qualifyContracts(contract)
+            ib.placeOrder(contract=contract, order=order)
 
 def scan_stocks():
     """ The main method. Sells stocks in your portfolio if their 50 day moving average crosses
@@ -272,14 +324,16 @@ def scan_stocks():
     register_matplotlib_converters()
     # watchlist_symbols = get_watchlist_symbols()
     # watchlist_symbols = get_symbols("nasdaq")
-    watchlist_symbols =get_tickers(AMEX=False, NYSE=False)
+    # watchlist_symbols =get_tickers(AMEX=False, NYSE=False)
     # filtered_tickers = get_tickers_filtered(mktcap_min=2000)
     # watchlist_symbols = get_biggest_n_tickers(100,NYSE=False, AMEX=False)
     # watchlist_symbols = get_sp_X00(index=500)
     # watchlist_symbols = get_nasdaq_100()
+    watchlist_symbols = ['AAPL','TTWO','VRSK']
     # print("NASDAQ",len(watchlist_symbols),len(set(watchlist_symbols)))
 
     portfolio_symbols = get_portfolio_symbols()
+    # portfolio_symbols = get_portfolio_symbols_ib
     holdings_data = get_modified_holdings()
     potential_buys = []
     sells = []
@@ -311,3 +365,6 @@ def scan_stocks():
 
 #execute the scan
 scan_stocks()
+
+# print(account_df)
+ib.disconnect()

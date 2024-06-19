@@ -6,3 +6,5 @@ ta>=0.5.11
 yahoo_fin
 requests_html
 pyotp
+python-dotenv
+ib-insync==0.9.86
