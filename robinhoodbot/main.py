@@ -250,7 +250,7 @@ def sell_holdings(symbol, holdings_data):
     if ib_trade:
         # shares_owned_ib = int(position_quantity(symbol))
         contract = Stock(symbol, 'SMART', 'USD')
-        order = MarketOrder("SELL", totalQuantity=num_shares)
+        order = MarketOrder("SELL", totalQuantity=shares_owned_ib)
         ib.qualifyContracts(contract)
         ib.placeOrder(contract=contract, order=order)
     
