@@ -16,8 +16,7 @@ from ib.utils import *
 #Log in to Robinhood
 #Put your username and password in a config.py file in the same directory (see sample file)
 totp = otp(rh_auth_activation_key).now()
-login = r.login(rh_username,rh_password,mfa_code=totp)
-
+login = r.login(rh_username,rh_password) if not mfa else r.login(rh_username,rh_password,mfa_code=totp)
 
 ib = connect_to_ib()
 if ib is None:
@@ -242,11 +241,11 @@ def sell_holdings(symbol, holdings_data):
         symbol(str): Symbol of the stock we want to sell
         holdings_data(dict): dict obtained from get_modified_holdings() method
     """
-    # shares_owned = int(float(holdings_data[symbol].get("quantity")))
+    shares_owned = int(float(holdings_data[symbol].get("quantity")))
     shares_owned_ib = int(position_quantity(ib,symbol))
     print(symbol,shares_owned_ib)
     if not debug:
-        r.order_sell_market(symbol, shares_owned_ib)
+        r.order_sell_market(symbol, shares_owned)
     if ib_trade:
         # shares_owned_ib = int(position_quantity(symbol))
         contract = Stock(symbol, 'SMART', 'USD')
@@ -288,7 +287,7 @@ def buy_holdings(potential_buys, profile_data, holdings_data):
         print("####### Buying " + str(num_shares) + " shares of " + potential_buys[i] + " #######")
         if not debug:
             r.order_buy_market(potential_buys[i], num_shares)
-        if ib:
+        if ib_trade:
             contract = Stock(potential_buys[i], 'SMART', 'USD')
             order = MarketOrder("BUY", totalQuantity=num_shares)
             ib.qualifyContracts(contract)
@@ -310,18 +309,17 @@ def scan_stocks():
     print("----- Starting scan... -----\n")
     register_matplotlib_converters()
     # watchlist_symbols = get_watchlist_symbols()
-    # watchlist_symbols = get_symbols("nasdaq")
-    # watchlist_symbols =get_tickers(AMEX=False, NYSE=False)
+    watchlist_symbols =get_tickers(AMEX=False, NYSE=False)
     # filtered_tickers = get_tickers_filtered(mktcap_min=2000)
     # watchlist_symbols = get_biggest_n_tickers(100,NYSE=False, AMEX=False)
-    # watchlist_symbols = get_sp_X00(index=500)
+    # watchlist_symbols = get_sp_X00(index=600)
     # watchlist_symbols = get_nasdaq_100()
-    watchlist_symbols = ['AAPL','TTWO','VRSK']
+    # watchlist_symbols = ['DIOD','PRFT']
     # print("NASDAQ",len(watchlist_symbols),len(set(watchlist_symbols)))
 
     # portfolio_symbols = get_portfolio_symbols()
-    # portfolio_symbols = get_portfolio_symbols_ib
-    portfolio_symbols = ['TTWO','VRSK']
+    portfolio_symbols = get_portfolio_symbols_ib()
+    # portfolio_symbols = ['TTWO','VRSK']
     holdings_data = get_modified_holdings()
     potential_buys = []
     sells = []
@@ -329,7 +327,6 @@ def scan_stocks():
     print("Current Watchlist: " + str(watchlist_symbols) + "\n")
     print("----- Scanning portfolio for stocks to sell -----\n")
     for symbol in portfolio_symbols:
-        sell_holdings(symbol, holdings_data)
         cross = golden_cross(symbol, n1=50, n2=200, days=30, direction="below")
         if(cross == -1):
             sell_holdings(symbol, holdings_data)
